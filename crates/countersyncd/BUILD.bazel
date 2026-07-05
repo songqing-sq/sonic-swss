@@ -1,0 +1,31 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+load("@swss_crates//:defs.bzl", "aliases", "all_crate_deps")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["Cargo.toml"])
+
+rust_library(
+    name = "countersyncd_lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    crate_name = "countersyncd",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    aliases = aliases(),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    deps = all_crate_deps(),
+)
+
+rust_binary(
+    name = "countersyncd",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+    edition = "2021",
+    experimental_use_cc_common_link = 1,
+    aliases = aliases(),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    deps = all_crate_deps() + [":countersyncd_lib"],
+)

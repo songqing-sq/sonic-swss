@@ -271,7 +271,13 @@ cc_binary(
     name = "routeresync",
     srcs = ["routeresync.cpp"] + glob(["*.h"]),
     cxxopts = CXX_COMMON,
-    dynamic_deps = ["@sonic-swss-common//:swsscommon_shared"],
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = [
         "//lib:libswss",
         "@sonic-swss-common//:swsscommon",
@@ -282,7 +288,13 @@ cc_binary(
     name = "orchagent_restart_check",
     srcs = ["orchagent_restart_check.cpp"],
     cxxopts = CXX_COMMON,
-    dynamic_deps = ["@sonic-swss-common//:swsscommon_shared"],
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = [
         "@sonic-swss-common//:swsscommon",
         "@swss_apt_deps//libhiredis-dev:libhiredis",

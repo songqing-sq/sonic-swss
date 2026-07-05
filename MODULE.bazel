@@ -16,6 +16,24 @@ bazel_dep(name = "libyang3", version = "3.12.2")
 bazel_dep(name = "sonic-dash-api", version = "1.0.0")
 
 bazel_dep(name = "rules_distroless", version = "0.0.0", repo_name = "rules_deb")
+bazel_dep(name = "rules_rust", version = "0.61.0")
+
+# Rust crate_universe for countersyncd
+crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+crate.from_cargo(
+    name = "swss_crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = [
+        "//:Cargo.toml",
+        "//crates/countersyncd:Cargo.toml",
+    ],
+)
+crate.annotation(
+    crate = "swss-common",
+    repositories = ["swss_crates"],
+    override_target_lib = "@sonic-swss-common//crates/swss-common:swss_common",
+)
+use_repo(crate, "swss_crates")
 
 apt = use_extension("@rules_deb//apt:extensions.bzl", "apt")
 apt.sources_list(

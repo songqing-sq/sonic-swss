@@ -3,6 +3,11 @@ load("@sonic_rules//sonic_deb:sonic_deb.bzl", "sonic_deb")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
 cc_library(
     name = "liborch",
     hdrs = ["//cfgmgr:shellcmd.h"],
@@ -50,6 +55,7 @@ sonic_deb(
             "//cfgmgr:macsecmgrd",
             "//cfgmgr:fabricmgrd",
             "//cfgmgr:stpmgrd",
+            "//crates/countersyncd",
         ],
         "/usr/share/swss:*:0644": [
             "//orchagent:swss_lua_scripts",
