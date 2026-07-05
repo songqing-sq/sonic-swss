@@ -1,0 +1,73 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@sonic_rules//sonic_deb:sonic_deb.bzl", "sonic_deb")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "liborch",
+    hdrs = ["//cfgmgr:shellcmd.h"],
+    includes = ["cfgmgr"],
+    deps = [
+        "//orchagent:orch_common",
+        "//warmrestart",
+    ],
+)
+
+sonic_deb(
+    name = "swss_1.0.0.deb",
+    changelog = "debian/changelog",
+    content = {
+        "/etc/swss/config.d:sample/:0644": ["//swssconfig:swssconfig_sample"],
+        "/usr/bin:*:0755": [
+            "//orchagent",
+            "//orchagent:routeresync",
+            "//orchagent:orchagent_restart_check",
+            "//fpmsyncd",
+            "//fpmsyncd:fpmsyncd_scripts",
+            "//neighsyncd",
+            "//neighsyncd:neighsyncd_scripts",
+            "//portsyncd",
+            "//teamsyncd",
+            "//tlm_teamd",
+            "//swssconfig",
+            "//swssconfig:swssplayer",
+            "//natsyncd",
+            "//fdbsyncd",
+            "//mclagsyncd",
+            "//gearsyncd",
+            "//cfgmgr:vlanmgrd",
+            "//cfgmgr:teammgrd",
+            "//cfgmgr:portmgrd",
+            "//cfgmgr:intfmgrd",
+            "//cfgmgr:buffermgrd",
+            "//cfgmgr:vrfmgrd",
+            "//cfgmgr:nbrmgrd",
+            "//cfgmgr:vxlanmgrd",
+            "//cfgmgr:sflowmgrd",
+            "//cfgmgr:natmgrd",
+            "//cfgmgr:coppmgrd",
+            "//cfgmgr:tunnelmgrd",
+            "//cfgmgr:macsecmgrd",
+            "//cfgmgr:fabricmgrd",
+            "//cfgmgr:stpmgrd",
+        ],
+        "/usr/share/swss:*:0644": [
+            "//orchagent:swss_lua_scripts",
+            "//cfgmgr:cfgmgr_lua_scripts",
+        ],
+    },
+    depends = [
+        "libswsscommon",
+        "libsairedis",
+        "libsaimetadata",
+        "libc6",
+        "libstdc++6",
+    ],
+    description = "SONiC Switch State Service. This package contains the orchagent, syncd daemons, and configuration managers for SONiC.",
+    gen_dbg = True,
+    maintainer = "SONiC Community",
+    package = "swss",
+    section = "net",
+    version = "1.0.0",
+)
+

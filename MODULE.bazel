@@ -1,0 +1,51 @@
+module(
+    name = "sonic-swss",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "sonic-swss-common", version = "1.0.0")
+bazel_dep(name = "sonic-sairedis", version = "1.0.0", repo_name = "sonic_sairedis")
+bazel_dep(name = "sai", version = "0.0.0")
+bazel_dep(name = "sonic-build-infra", version = "0.0.0", repo_name = "sonic_rules")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "protobuf", version = "29.0")
+bazel_dep(name = "libnl3", version = "3.7.0")
+bazel_dep(name = "libteam", version = "1.31-1")
+bazel_dep(name = "libyang3", version = "3.12.2")
+bazel_dep(name = "sonic-dash-api", version = "1.0.0")
+
+bazel_dep(name = "rules_distroless", version = "0.0.0", repo_name = "rules_deb")
+
+apt = use_extension("@rules_deb//apt:extensions.bzl", "apt")
+apt.sources_list(
+    architectures = ["amd64", "arm64"],
+    components = ["main"],
+    suites = [
+        "trixie",
+        "trixie-updates",
+    ],
+    uris = ["https://deb.debian.org/debian"],
+)
+apt.sources_list(
+    architectures = ["amd64", "arm64"],
+    components = ["main"],
+    suites = ["trixie-security"],
+    uris = ["https://security.debian.org/debian-security"],
+)
+apt.install(
+    dependency_set = "swss_apt_deps",
+    packages = [
+        "libhiredis-dev",
+        "libjansson-dev",
+        "libyaml-cpp-dev",
+        "libzmq3-dev",
+        "libjemalloc-dev",
+    ],
+    suites = [
+        "trixie",
+        "trixie-updates",
+        "trixie-security",
+    ],
+)
+use_repo(apt, "swss_apt_deps")

@@ -1,0 +1,18 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "warmrestart",
+    srcs = [
+        "warmRestartAssist.cpp",
+        "warmRestartHelper.cpp",
+    ],
+    hdrs = glob(["*.h"]),
+    cxxopts = ["-DNDEBUG"],
+    includes = ["."],
+    deps = [
+        "@sonic-swss-common//:swsscommon",
+        "@libnl3//:libnl_3",
+    ],
+)

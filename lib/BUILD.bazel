@@ -1,0 +1,12 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "libswss",
+    srcs = glob(["*.cpp"]),
+    hdrs = glob(["*.h"]),
+    cxxopts = ["-DNDEBUG"],
+    includes = ["."],
+    deps = ["@sonic-swss-common//:swsscommon"],
+)

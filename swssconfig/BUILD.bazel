@@ -1,0 +1,50 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+CXX_COMMON = [
+    "-Werror",
+    "-Wno-reorder",
+    "-Wno-unused-parameter",
+    "-Wno-implicit-fallthrough",
+    "-DNDEBUG",
+]
+
+cc_binary(
+    name = "swssconfig",
+    srcs = ["swssconfig.cpp"],
+    cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
+    deps = [
+        "//lib:libswss",
+        "@sonic-swss-common//:swsscommon",
+    ],
+)
+
+cc_binary(
+    name = "swssplayer",
+    srcs = ["swssplayer.cpp"],
+    cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
+    deps = [
+        "//lib:libswss",
+        "@sonic-swss-common//:swsscommon",
+    ],
+)
+
+filegroup(
+    name = "swssconfig_sample",
+    srcs = glob(["sample/*.json"]),
+)

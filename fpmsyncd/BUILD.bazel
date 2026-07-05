@@ -1,0 +1,57 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+CXX_COMMON = [
+    "-Werror",
+    "-Wno-reorder",
+    "-Wno-unused-parameter",
+    "-Wno-implicit-fallthrough",
+    "-DNDEBUG",
+]
+
+genrule(
+    name = "libnl3_compat_h",
+    outs = ["libnl3_compat/libnl3/netlink/netlink.h"],
+    cmd = "echo '#include <netlink/netlink.h>' > $@",
+)
+
+cc_library(
+    name = "libnl3_compat",
+    hdrs = [":libnl3_compat_h"],
+    includes = ["libnl3_compat"],
+    deps = ["@libnl3//:libnl_3"],
+)
+
+cc_binary(
+    name = "fpmsyncd",
+    srcs = glob([
+        "*.cpp",
+        "**/*.h",
+    ]),
+    cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
+    includes = ["."],
+    deps = [
+        ":libnl3_compat",
+        "//warmrestart",
+        "//lib:libswss",
+        "@sonic-swss-common//:swsscommon",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+    ],
+)
+
+exports_files(["fpmsyncd.h"])
+
+filegroup(
+    name = "fpmsyncd_scripts",
+    srcs = ["bgp_eoiu_marker.py"],
+)

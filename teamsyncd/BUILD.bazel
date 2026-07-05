@@ -1,0 +1,36 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+CXX_COMMON = [
+    "-Werror",
+    "-Wno-reorder",
+    "-Wno-unused-parameter",
+    "-Wno-implicit-fallthrough",
+    "-DNDEBUG",
+]
+
+cc_binary(
+    name = "teamsyncd",
+    srcs = glob(["*.cpp", "*.h"]),
+    cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_genl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libnl3//:libnl_cli_3_shared",
+        "@libyang3//:yang_shared",
+        "@libteam//:libteam_shared",
+        "@libteam//:libteamdctl_shared",
+    ],
+    deps = [
+        "@sonic-swss-common//:swsscommon",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+        "@libteam//:libteam",
+        "@libteam//:libteamdctl",
+        "@swss_apt_deps//libhiredis-dev:libhiredis",
+    ],
+)
