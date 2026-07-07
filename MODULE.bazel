@@ -43,13 +43,13 @@ apt.sources_list(
         "trixie",
         "trixie-updates",
     ],
-    uris = ["https://deb.debian.org/debian"],
+    uris = ["https://snapshot.debian.org/archive/debian/20260409T202916Z"],
 )
 apt.sources_list(
     architectures = ["amd64", "arm64"],
     components = ["main"],
     suites = ["trixie-security"],
-    uris = ["https://security.debian.org/debian-security"],
+    uris = ["https://snapshot.debian.org/archive/debian-security/20260409T182303Z"],
 )
 apt.install(
     dependency_set = "swss_apt_deps",
