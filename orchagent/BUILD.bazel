@@ -231,6 +231,7 @@ cc_binary(
         "@sonic_sairedis//meta:saimeta_shared",
         "@sai//meta:saimetadata_shared",
         "@sonic-swss-common//:swsscommon_shared",
+        "@sonic_rules//protobuf:libprotobuf_shared",
         "@libnl3//:libnl_3_shared",
         "@libnl3//:libnl_nf_3_shared",
         "@libnl3//:libnl_route_3_shared",

@@ -25,6 +25,13 @@ cc_binary(
     name = "vlanmgrd",
     srcs = ["vlanmgrd.cpp", "vlanmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -32,6 +39,13 @@ cc_binary(
     name = "teammgrd",
     srcs = ["teammgrd.cpp", "teammgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -39,6 +53,13 @@ cc_binary(
     name = "portmgrd",
     srcs = ["portmgrd.cpp", "portmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -46,6 +67,13 @@ cc_binary(
     name = "intfmgrd",
     srcs = ["intfmgrd.cpp", "intfmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = [
         "//:liborch",
         "//lib:libswss",
@@ -56,6 +84,13 @@ cc_binary(
     name = "buffermgrd",
     srcs = ["buffermgrd.cpp", "buffermgr.cpp", "buffermgrdyn.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -63,6 +98,13 @@ cc_binary(
     name = "vrfmgrd",
     srcs = ["vrfmgrd.cpp", "vrfmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -70,6 +112,14 @@ cc_binary(
     name = "nbrmgrd",
     srcs = ["nbrmgrd.cpp", "nbrmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libnl3//:libnl_genl_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = [
         "//:liborch",
         "@libnl3//:libnl_3",
@@ -82,6 +132,13 @@ cc_binary(
     name = "vxlanmgrd",
     srcs = ["vxlanmgrd.cpp", "vxlanmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -89,6 +146,13 @@ cc_binary(
     name = "sflowmgrd",
     srcs = ["sflowmgrd.cpp", "sflowmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -96,6 +160,13 @@ cc_binary(
     name = "natmgrd",
     srcs = ["natmgrd.cpp", "natmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -103,6 +174,13 @@ cc_binary(
     name = "coppmgrd",
     srcs = ["coppmgrd.cpp", "coppmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -110,6 +188,13 @@ cc_binary(
     name = "tunnelmgrd",
     srcs = ["tunnelmgrd.cpp", "tunnelmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -117,6 +202,13 @@ cc_binary(
     name = "macsecmgrd",
     srcs = ["macsecmgrd.cpp", "macsecmgr.cpp", "//orchagent:macsecpost.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON + ["-std=c++17"],
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -124,6 +216,13 @@ cc_binary(
     name = "fabricmgrd",
     srcs = ["fabricmgrd.cpp", "fabricmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
 
@@ -131,5 +230,12 @@ cc_binary(
     name = "stpmgrd",
     srcs = ["stpmgrd.cpp", "stpmgr.cpp"] + CFGMGR_HDRS,
     cxxopts = CXX_COMMON,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
     deps = ["//:liborch"],
 )
