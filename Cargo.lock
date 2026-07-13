@@ -2331,7 +2331,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "swss-common"
 version = "0.1.0"
+<<<<<<< Updated upstream
 source = "git+https://github.com/sonic-net/sonic-swss-common.git#112ac56e2f01edb93e70b90ecdee90383650c0f9"
+=======
+source = "git+https://github.com/sonic-net/sonic-swss-common.git#bf534ed781bef742edd741e5d6716dbe414c532c"
+>>>>>>> Stashed changes
 dependencies = [
  "bindgen",
  "getset",
