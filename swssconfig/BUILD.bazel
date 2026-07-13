@@ -46,5 +46,8 @@ cc_binary(
 
 filegroup(
     name = "swssconfig_sample",
-    srcs = glob(["sample/*.json"]),
+    # Match debian/swss.install: only netbouncer.json is shipped to
+    # /etc/swss/config.d/. glob(["sample/*.json"]) over-included mirror.json
+    # and sample.json, which the Make swss.deb does not install.
+    srcs = ["sample/netbouncer.json"],
 )
