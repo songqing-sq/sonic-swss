@@ -73,7 +73,6 @@ cc_library(
         "port",
         "switch",
     ],
-    linkopts = ["-lpthread"],
     deps = [
         "//lib:libswss",
         "//warmrestart",
@@ -84,6 +83,7 @@ cc_library(
         "@sonic-swss-common//:swsscommon",
         "@swss_apt_deps//libhiredis-dev:libhiredis",
         "@swss_apt_deps//libzmq3-dev:libzmq3",
+        "@sonic_rules//system_libs:pthread",
     ],
 )
 
@@ -248,7 +248,6 @@ cc_binary(
         "port",
         "switch",
     ],
-    linkopts = ["-lpthread"],
     deps = [
         ":orch_common",
         "//lib:libswss",
@@ -265,6 +264,7 @@ cc_binary(
         "@swss_apt_deps//libzmq3-dev:libzmq3",
         "@swss_apt_deps//libjemalloc-dev:libjemalloc",
         "@swss_apt_deps//libyaml-cpp-dev:libyaml-cpp",
+        "@sonic_rules//system_libs:pthread",
     ],
 )
 
