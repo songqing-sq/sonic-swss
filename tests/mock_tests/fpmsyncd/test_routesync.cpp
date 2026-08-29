@@ -3038,8 +3038,8 @@ TEST_F(FpmSyncdResponseTest, TestFpmConnectionState)
 TEST_F(FpmSyncdResponseTest, TestParseEncapVxlanVniPath)
 {
     /* Test parseEncap with VXLAN_VNI path (NH_ENCAP_VXLAN) */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3071,8 +3071,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapVxlanVniPath)
 TEST_F(FpmSyncdResponseTest, TestParseEncapLwtunnelPath)
 {
     /* Test parseEncap with LWTUNNEL_IP_ID path (LWTUNNEL_ENCAP_IP) */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3107,8 +3107,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapLwtunnelPath)
 TEST_F(FpmSyncdResponseTest, TestParseEncapMissingVni)
 {
     /* Test parseEncap with missing VNI - should return early */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3137,8 +3137,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapMissingVni)
 TEST_F(FpmSyncdResponseTest, TestParseEncapMissingRmac)
 {
     /* Test parseEncap with missing RMAC - should return early */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3166,8 +3166,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapMissingRmac)
 TEST_F(FpmSyncdResponseTest, TestParseEncapDifferentRmacValues)
 {
     /* Test parseEncap with different RMAC values */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3196,8 +3196,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapDifferentRmacValues)
 TEST_F(FpmSyncdResponseTest, TestParseEncapBroadcastRmac)
 {
     /* Test parseEncap with broadcast RMAC */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3228,8 +3228,8 @@ TEST_F(FpmSyncdResponseTest, TestParseEncapBroadcastRmac)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopSingleIPv4Gateway)
 {
     /* Test getEvpnNextHop with single IPv4 gateway */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3274,8 +3274,8 @@ TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopSingleIPv4Gateway)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopSingleIPv6Gateway)
 {
     /* Test getEvpnNextHop with single IPv6 gateway */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3317,8 +3317,8 @@ TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopSingleIPv6Gateway)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopWithRtaVia)
 {
     /* Test getEvpnNextHop with RTA_VIA instead of RTA_GATEWAY */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3407,8 +3407,8 @@ TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopIPv6V4Mapped)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopMissingEncap)
 {
     /* Test getEvpnNextHop returns false when encap_value is 0 */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3438,8 +3438,8 @@ TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopMissingEncap)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopZeroRmac)
 {
     /* Test getEvpnNextHop returns false when RMAC is all zeros */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
@@ -3520,8 +3520,8 @@ TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopUnknownInterface)
 TEST_F(FpmSyncdResponseTest, TestGetEvpnNextHopMultipath)
 {
     /* Test getEvpnNextHop with multipath (RTA_MULTIPATH with 2 nexthops) */
-    struct nlmsghdr nlh_storage;
-    struct nlmsghdr *nlh = &nlh_storage;
+    alignas(struct nlmsghdr) char nlh_storage[NLMSG_SPACE(MAX_PAYLOAD)];
+    struct nlmsghdr *nlh = reinterpret_cast<struct nlmsghdr *>(nlh_storage);
 
     memset(nlh, 0, sizeof(*nlh));
     nlh->nlmsg_len = NLMSG_LENGTH(0);
