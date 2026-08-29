@@ -49,7 +49,35 @@ cc_binary(
     ],
 )
 
-exports_files(["fpmsyncd.h"])
+# fpmsyncd.h is here for orchagent; fpmlink.cpp and routesync.cpp are the two
+# sources tests/mock_tests compiles into its gtest binary (Make:
+# tests_fpmsyncd_SOURCES += $(top_srcdir)/fpmsyncd/{fpmlink,routesync}.cpp).
+# The suite cannot link :fpmsyncd's objects instead -- it swaps the warmstart
+# helper and ProducerStateTable for fakes of its own, and fpmsyncd.cpp brings a
+# second main() along.
+exports_files([
+    "fpmlink.cpp",
+    "fpmsyncd.h",
+    "routesync.cpp",
+])
+
+# Headers only, for that suite: it includes fpmlink.h/routesync.h both bare and
+# repo-root qualified (Make: -I$(top_srcdir)/fpmsyncd on top of tests_INCLUDES).
+cc_library(
+    name = "fpmsyncd_hdrs",
+    hdrs = glob(["**/*.h"]),
+    includes = ["."],
+    deps = [
+        # fpminterface.h wants <libnl3/netlink/netlink.h>, the same spelling
+        # :fpmsyncd needs the shim for.
+        ":libnl3_compat",
+        "//lib:libswss_hdrs",
+        "//warmrestart:warmrestart_hdrs",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+        "@sonic-swss-common//:swsscommon",
+    ],
+)
 
 filegroup(
     name = "fpmsyncd_scripts",

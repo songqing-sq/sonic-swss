@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -24,6 +25,26 @@ cc_binary(
     deps = [
         "//lib:libswss",
         "//warmrestart",
+        "@sonic-swss-common//:swsscommon",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+    ],
+)
+
+# tests_fdbsyncd compiles fdbsync.cpp itself (Make: tests_fdbsyncd_SOURCES +=
+# $(top_srcdir)/fdbsyncd/fdbsync.cpp) next to fakes that stand in for the
+# warmrestart and swsscommon pieces fdbsync.cpp talks to, so it cannot link the
+# fdbsyncd binary's dependency closure. :fdbsync_hdrs carries the headers, whose
+# includes reach back to the repository root ("lib/fdb_defs.h").
+exports_files(["fdbsync.cpp"])
+
+cc_library(
+    name = "fdbsync_hdrs",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    deps = [
+        "//lib:libswss_hdrs",
+        "//warmrestart:warmrestart_hdrs",
         "@sonic-swss-common//:swsscommon",
         "@libnl3//:libnl_3",
         "@libnl3//:libnl_route_3",

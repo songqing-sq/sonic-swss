@@ -16,3 +16,27 @@ cc_library(
         "@libnl3//:libnl_3",
     ],
 )
+
+# The main tests suite compiles both sources into its own gtest binary (Make:
+# tests_SOURCES += $(top_srcdir)/warmrestart/warmRestart{Helper,Assist}.cpp)
+# rather than linking :warmrestart, because warmrestarthelper_ut.cpp reaches
+# into the implementation and Make's -O0 -g flags for the suite differ from the
+# library's.
+exports_files([
+    "warmRestartAssist.cpp",
+    "warmRestartHelper.cpp",
+])
+
+# The fdbsyncd and fpmsyncd suites replace warmRestartAssist/warmRestartHelper
+# with fakes of their own (Make: tests_fdbsyncd_SOURCES += fdbsyncd/fake_warm*.cpp),
+# so they cannot link :warmrestart -- the real objects would collide with the
+# fakes. They take the headers alone from here instead.
+cc_library(
+    name = "warmrestart_hdrs",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    deps = [
+        "@sonic-swss-common//:swsscommon",
+        "@libnl3//:libnl_3",
+    ],
+)

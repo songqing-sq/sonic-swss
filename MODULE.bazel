@@ -18,6 +18,12 @@ bazel_dep(name = "sonic-dash-api", version = "1.0.0")
 bazel_dep(name = "rules_distroless", version = "0.0.0", repo_name = "rules_deb")
 bazel_dep(name = "rules_rust", version = "0.61.0")
 
+# gtest/gmock for tests/mock_tests (Make links -lgtest -lgtest_main -lgmock
+# -lgmock_main there). Not marked dev_dependency: this module is also consumed
+# as a non-root dependency, and dev deps are dropped in that case, which would
+# leave @googletest unresolvable.
+bazel_dep(name = "googletest", version = "1.15.2")
+
 # Rust crate_universe for countersyncd
 crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 crate.from_cargo(
@@ -59,6 +65,36 @@ apt.install(
         "libyaml-cpp-dev",
         "libzmq3-dev",
         "libjemalloc-dev",
+        # Test-only: a sandboxed test has no installed debs, so the whole .so
+        # closure the mock_tests binaries load at runtime has to reach the
+        # runfiles as data (the shared cc test runner unpacks these :data tars
+        # into a throwaway sysroot). The -dev packages above only carry the
+        # unversioned link-time .so; the runtime artifacts live in the library
+        # packages below. swss-common declares the same libraries in its own
+        # isolated @swss_deps pool, which is invisible from here, hence the
+        # duplicates. amd64 only -- tests run on the exec platform.
+        "libhiredis1.1.0:amd64",
+        "libzmq5:amd64",
+        "libjansson4:amd64",
+        "libboost-serialization1.83.0:amd64",
+        "libuuid1:amd64",
+        "liblua5.1-0:amd64",
+        "libpcre2-8-0:amd64",
+        "libpcre2-16-0:amd64",
+        "libpcre2-32-0:amd64",
+        "libpcre2-posix3:amd64",
+        "libxxhash0:amd64",
+        "zlib1g:amd64",
+        "libdbus-1-3:amd64",
+        "libsystemd0:amd64",
+        # Test-only: the full trixie glibc family, per the sonic_cc_gtest_test
+        # convention. libc6 carries libc/libm/ld-linux, so the runner finds a
+        # loader matching the libc it stages and both halves of glibc come from
+        # one package. Declared explicitly rather than relying on the import
+        # closure happening to stage them into _solib_*.
+        "libc6:amd64",
+        "libgcc-s1:amd64",
+        "libstdc++6:amd64",
     ],
     suites = [
         "trixie",

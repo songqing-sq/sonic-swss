@@ -1,0 +1,652 @@
+# swss mock unit tests (Make: tests/mock_tests/Makefile.am).
+#
+# Make builds nine noinst_PROGRAMS here and lists all of them in TESTS, so
+# `dh_auto_test` -> `make check` runs them while building the swss deb. Each
+# program is a gtest binary that links the daemon sources under test together
+# with the mock/fake translation units in this directory; the mocks interpose on
+# libswsscommon and libhiredis symbols, which only works because both are linked
+# in as shared libraries (definitions in the executable win the dynamic lookup).
+# That is why every test binary below uses dynamic_deps exactly like the
+# production binaries do -- linking swsscommon statically would leave the real
+# implementations in place and the suites would try to reach a real redis.
+#
+# The suites need no redis: mock_hiredis.cpp fakes the wire protocol and
+# mock_dbconnector.cpp builds DBConnector objects around a dummy socket. It does
+# read ./database_config.json through a CWD-relative path, hence fixture_mode.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@sonic_rules//cc:gtest_test.bzl", "sonic_cc_gtest_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# orchagent/p4orch/tests/p4orch_tests links this one too (Make:
+# p4orch_tests_SOURCES += $(top_srcdir)/tests/mock_tests/fake_response_publisher.cpp).
+exports_files(["fake_response_publisher.cpp"])
+
+# Make: CFLAGS/CXXFLAGS = -g -O0, DBGFLAGS = -g -DNDEBUG (the non-DEBUG arm).
+# The warning set is deliberately not orchagent's CXX_COMMON: the mock sources
+# are not held to -Werror there either (Makefile.am passes no -W flags beyond
+# AM_CFLAGS/CFLAGS_COMMON, both empty in this tree).
+TEST_COPTS = [
+    "-g",
+    "-O0",
+    "-std=c++17",
+    "-DNDEBUG",
+]
+
+# The .so closure the test binaries load at runtime. First-party libraries come
+# in as _files targets because those carry the soname symlinks
+# (libswsscommon.so.0 -> .so.0.0.0) that the _solib_* staging lacks; apt
+# libraries come in as :data tars the runner unpacks into a throwaway sysroot.
+TEST_SO_FILES = [
+    "@sonic-swss-common//:swsscommon_files",
+    "@libnl3//:libnl_3_files",
+    "@libnl3//:libnl_genl_3_files",
+    "@libnl3//:libnl_nf_3_files",
+    "@libnl3//:libnl_route_3_files",
+    "@libnl3//:libnl_cli_3_files",
+    "@libyang3//:yang_files",
+]
+
+# Only the teamd-facing suites load these.
+TEAM_SO_FILES = [
+    "@libteam//:libteam_files",
+    "@libteam//:libteamdctl_files",
+]
+
+TEST_APT_DATA = [
+    "@swss_apt_deps//libhiredis1.1.0:data",
+    "@swss_apt_deps//libzmq5:data",
+    "@swss_apt_deps//libboost-serialization1.83.0:data",
+    "@swss_apt_deps//libuuid1:data",
+    "@swss_apt_deps//liblua5.1-0:data",
+    "@swss_apt_deps//libpcre2-8-0:data",
+    "@swss_apt_deps//libpcre2-16-0:data",
+    "@swss_apt_deps//libpcre2-32-0:data",
+    "@swss_apt_deps//libpcre2-posix3:data",
+    "@swss_apt_deps//libxxhash0:data",
+    "@swss_apt_deps//zlib1g:data",
+    # Per the sonic_cc_gtest_test convention: the runner execs the staged
+    # loader, so the glibc family has to be declared, not ridden in on the
+    # import closure.
+    "@swss_apt_deps//libc6:data",
+    "@swss_apt_deps//libgcc-s1:data",
+    "@swss_apt_deps//libstdc++6:data",
+]
+
+# Every suite pulls these in: the DBConnector/Table/RedisReply fakes plus the
+# hiredis stub that keeps them off the wire, and the bazel-only shim that stands
+# in for the file the libswsscommon deb installs at an absolute path in Make's
+# build container (/var/run/redis/sonic-db/database_config.json).
+MOCK_DB_SRCS = [
+    "mock_dbconnector.cpp",
+    "mock_hiredis.cpp",
+    "mock_redisreply.cpp",
+    "mock_table.cpp",
+    "mock_table.h",
+    "bazel/sonic_db_config_env.cpp",
+]
+
+# The other absolute path Make's container provides, /usr/share/swss/*.lua, is
+# covered by a preloaded interposer instead -- see bazel/swss_lua_path.cpp for
+# why it cannot simply be linked in. bazel/lua_setup.sh finds both the shim and
+# the scripts in runfiles.
+cc_binary(
+    name = "libswss_lua_path.so",
+    testonly = True,
+    srcs = ["bazel/swss_lua_path.cpp"],
+    copts = TEST_COPTS,
+    linkshared = True,
+)
+
+LUA_DATA = [
+    "@sonic-swss-common//:lua_scripts",
+    ":libswss_lua_path.so",
+]
+
+# The libraries that have to stay shared for the mocks to interpose. Suites that
+# reach further -- libteam, for instance -- append to this.
+SWSS_DYNAMIC_DEPS = [
+    "@sonic-swss-common//:swsscommon_shared",
+    "@libnl3//:libnl_3_shared",
+    "@libnl3//:libnl_genl_3_shared",
+    "@libnl3//:libnl_nf_3_shared",
+    "@libnl3//:libnl_route_3_shared",
+    "@libyang3//:yang_shared",
+]
+
+# What every suite links against beyond its own sources.
+SWSS_TEST_DEPS = [
+    "@googletest//:gtest",
+    "@googletest//:gtest_main",
+    "@libnl3//:libnl_3",
+    "@libnl3//:libnl_route_3",
+    "@sonic-swss-common//:swsscommon",
+    "@sonic_rules//system_libs:pthread",
+    "@swss_apt_deps//libhiredis-dev:libhiredis",
+]
+
+# ---------------------------------------------------------------------------
+# tests_teamsyncd (Make: tests_teamsyncd_SOURCES)
+# ---------------------------------------------------------------------------
+# teamsync_ut.cpp redefines team_init/teamdctl_* /sleep and dispatches to the
+# real ones via dlsym(RTLD_NEXT), so libteam/libteamdctl must stay shared for
+# the interposition to take effect.
+cc_binary(
+    name = "tests_teamsyncd_bin",
+    testonly = True,
+    srcs = [
+        "teamsync_ut.cpp",
+        "//teamsyncd:teamsync.cpp",
+    ] + MOCK_DB_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS + [
+        # libteam.so needs nl_cli_*, same as the teamsyncd binary.
+        "@libnl3//:libnl_cli_3_shared",
+        "@libteam//:libteam_shared",
+        "@libteam//:libteamdctl_shared",
+    ],
+    includes = ["."],
+    deps = SWSS_TEST_DEPS + [
+        "//teamsyncd:teamsync_hdrs",
+        "@libteam//:libteam",
+        "@libteam//:libteamdctl",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests_teamsyncd",
+    binary = ":tests_teamsyncd_bin",
+    # mock_dbconnector.cpp does SonicDBConfig::initialize("./database_config.json").
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES + TEAM_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# tests_response_publisher (Make: tests_response_publisher_SOURCES)
+# ---------------------------------------------------------------------------
+# The one suite that exercises the real orchagent/response_publisher.cpp rather
+# than fake_response_publisher.cpp, so it takes the source directly instead of
+# the :orch_common library. mock_orchagent_main.cpp supplies the globals
+# response_publisher.cpp's headers declare (it includes orchdaemon.h, which is
+# why the SAI and dash headers come along through :orchagent_hdrs).
+cc_binary(
+    name = "tests_response_publisher_bin",
+    testonly = True,
+    srcs = [
+        "response_publisher/response_publisher_ut.cpp",
+        "mock_orchagent_main.cpp",
+        "//orchagent:response_publisher.cpp",
+        "//lib:recorder.cpp",
+    ] + MOCK_DB_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    deps = SWSS_TEST_DEPS + [
+        "//orchagent:orchagent_hdrs",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests_response_publisher",
+    binary = ":tests_response_publisher_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# tests_portsyncd (Make: tests_portsyncd_SOURCES)
+# ---------------------------------------------------------------------------
+# portsyncd_ut.cpp defines __wrap_if_nameindex/__wrap_if_freenameindex to hand
+# linksync.cpp a fixed interface list, hence the --wrap options Make passes as
+# tests_portsyncd_CXXFLAGS. No SAI here: this suite never reaches orchagent.
+cc_binary(
+    name = "tests_portsyncd_bin",
+    testonly = True,
+    srcs = [
+        "portsyncd/portsyncd_ut.cpp",
+        "common/mock_shell_command.cpp",
+        "//portsyncd:linksync.cpp",
+        "//lib:recorder.cpp",
+    ] + MOCK_DB_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    linkopts = [
+        "-Wl,-wrap,if_nameindex",
+        "-Wl,-wrap,if_freenameindex",
+    ],
+    deps = SWSS_TEST_DEPS + [
+        "//cfgmgr:cfgmgr_hdrs",
+        "//lib:libswss_hdrs",
+        "//portsyncd:linksync_hdrs",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests_portsyncd",
+    binary = ":tests_portsyncd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# tests_fdbsyncd (Make: tests_fdbsyncd_SOURCES)
+# ---------------------------------------------------------------------------
+# This suite replaces four of fdbsync.cpp's collaborators with fakes of its own
+# -- the warmstart helper/assist pair plus ProducerStateTable and
+# SubscriberStateTable -- so it links neither //warmrestart nor anything that
+# would bring the real definitions back in.
+cc_binary(
+    name = "tests_fdbsyncd_bin",
+    testonly = True,
+    srcs = [
+        "fdbsyncd/fdbsyncd_ut.cpp",
+        "fdbsyncd/fake_warmstarthelper.cpp",
+        "fdbsyncd/fake_warmstartassist.cpp",
+        "fdbsyncd/fake_producerstatetable.cpp",
+        "fdbsyncd/fake_subscriberstatetable.cpp",
+        "//fdbsyncd:fdbsync.cpp",
+    ] + MOCK_DB_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    deps = SWSS_TEST_DEPS + [
+        "//fdbsyncd:fdbsync_hdrs",
+        "//lib:libswss_hdrs",
+        "//warmrestart:warmrestart_hdrs",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests_fdbsyncd",
+    binary = ":tests_fdbsyncd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# tests_fpmsyncd (Make: tests_fpmsyncd_SOURCES)
+# ---------------------------------------------------------------------------
+# The one suite whose source list leaves mock_redisreply.cpp out, so it keeps
+# libswsscommon's real reply checking -- ut_helpers_fpmsyncd.cpp interposes at a
+# different level, on rtnl_link_i2name, to name the interfaces routesync.cpp
+# resolves (Make: tests_fpmsyncd_CXXFLAGS = -Wl,-wrap,rtnl_link_i2name).
+FPMSYNCD_MOCK_DB_SRCS = [src for src in MOCK_DB_SRCS if src != "mock_redisreply.cpp"]
+
+cc_binary(
+    name = "tests_fpmsyncd_bin",
+    testonly = True,
+    srcs = [
+        "fpmsyncd/test_fpmlink.cpp",
+        "fpmsyncd/test_routesync.cpp",
+        "fpmsyncd/receive_srv6_steer_routes_ut.cpp",
+        "fpmsyncd/receive_srv6_mysids_ut.cpp",
+        "fpmsyncd/ut_helpers_fpmsyncd.cpp",
+        "fpmsyncd/ut_helpers_fpmsyncd.h",
+        "fpmsyncd/fpmsyncd_evpn_mh_ut.cpp",
+        # As with tests_fdbsyncd, the warmstart helper and ProducerStateTable are
+        # faked here, which is why //warmrestart is not linked in.
+        "fake_netlink.cpp",
+        "fake_warmstarthelper.cpp",
+        "fake_producerstatetable.cpp",
+        "//fpmsyncd:fpmlink.cpp",
+        "//fpmsyncd:routesync.cpp",
+        "//lib:orch_zmq_config.cpp",
+    ] + FPMSYNCD_MOCK_DB_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    linkopts = ["-Wl,-wrap,rtnl_link_i2name"],
+    deps = SWSS_TEST_DEPS + [
+        "//fpmsyncd:fpmsyncd_hdrs",
+        "//lib:libswss_hdrs",
+        "//warmrestart:warmrestart_hdrs",
+        "@swss_apt_deps//libzmq3-dev:libzmq3",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests_fpmsyncd",
+    binary = ":tests_fpmsyncd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# The cfgmgr suites: tests_intfmgrd, tests_teammgrd, tests_nbrmgrd
+# ---------------------------------------------------------------------------
+# All three drive one cfgmgr daemon class through Orch's consumer machinery, so
+# they share a source list: the daemon's own cfgmgr source plus the two orchagent
+# sources it inherits from, the lib helpers it calls, and
+# fake_response_publisher.cpp in place of the real one -- which is why these
+# suites take orch.cpp and request_parser.cpp from :exports_files rather than
+# linking //orchagent:orch_common.
+MGR_COMMON_SRCS = [
+    "mock_orchagent_main.cpp",
+    # fake_response_publisher.cpp implements the interface declared in
+    # orchagent/p4orch/tests/mock_response_publisher.h, reached through the
+    # include path :orchagent_hdrs exports (Make: -I$(P4_ORCH_DIR)/tests).
+    "fake_response_publisher.cpp",
+    "common/mock_shell_command.cpp",
+    "//orchagent:orch.cpp",
+    "//orchagent:request_parser.cpp",
+    "//lib:recorder.cpp",
+    "//lib:subintf.cpp",
+] + MOCK_DB_SRCS
+
+# :cfgmgr_hdrs already carries the orchagent and lib include paths.
+MGR_COMMON_DEPS = SWSS_TEST_DEPS + ["//cfgmgr:cfgmgr_hdrs"]
+
+cc_binary(
+    name = "tests_intfmgrd_bin",
+    testonly = True,
+    srcs = [
+        "intfmgrd/intfmgr_ut.cpp",
+        "//cfgmgr:intfmgr.cpp",
+    ] + MGR_COMMON_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    deps = MGR_COMMON_DEPS,
+)
+
+sonic_cc_gtest_test(
+    name = "tests_intfmgrd",
+    binary = ":tests_intfmgrd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# teammgr.cpp talks to the kernel over libnl to set a LAG's MAC; teammgr_ut.cpp
+# stands in for the whole socket/link/address dance, hence the long --wrap list
+# Make passes as tests_teammgrd_CXXFLAGS.
+cc_binary(
+    name = "tests_teammgrd_bin",
+    testonly = True,
+    srcs = [
+        "teammgrd/teammgr_ut.cpp",
+        "//cfgmgr:teammgr.cpp",
+    ] + MGR_COMMON_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    linkopts = [
+        "-Wl,-wrap,nl_socket_alloc",
+        "-Wl,-wrap,nl_socket_free",
+        "-Wl,-wrap,nl_connect",
+        "-Wl,-wrap,nl_close",
+        "-Wl,-wrap,if_nametoindex",
+        "-Wl,-wrap,rtnl_link_alloc",
+        "-Wl,-wrap,rtnl_link_put",
+        "-Wl,-wrap,nl_addr_build",
+        "-Wl,-wrap,nl_addr_put",
+        "-Wl,-wrap,rtnl_link_set_addr",
+        "-Wl,-wrap,rtnl_link_get_kernel",
+        "-Wl,-wrap,rtnl_link_change",
+    ],
+    deps = MGR_COMMON_DEPS,
+)
+
+sonic_cc_gtest_test(
+    name = "tests_teammgrd",
+    binary = ":tests_teammgrd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# nbrmgr.cpp sends its own netlink messages, so this suite wraps the send path
+# (Make: tests_nbrmgrd_CXXFLAGS) and adds mock_consumerstatetable.cpp on top of
+# the shared mocks.
+cc_binary(
+    name = "tests_nbrmgrd_bin",
+    testonly = True,
+    srcs = [
+        "nbrmgrd/nbrmgr_ut.cpp",
+        "mock_consumerstatetable.cpp",
+        "//cfgmgr:nbrmgr.cpp",
+    ] + MGR_COMMON_SRCS,
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS,
+    includes = ["."],
+    linkopts = [
+        "-Wl,-wrap,nl_socket_alloc",
+        "-Wl,-wrap,nl_connect",
+        "-Wl,-wrap,nl_send_auto",
+        "-Wl,-wrap,if_nametoindex",
+        "-Wl,-wrap,nlmsg_alloc",
+    ],
+    deps = MGR_COMMON_DEPS,
+)
+
+sonic_cc_gtest_test(
+    name = "tests_nbrmgrd",
+    binary = ":tests_nbrmgrd_bin",
+    fixtures = ["database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+
+# ---------------------------------------------------------------------------
+# tests (Make: tests_SOURCES) -- the orchagent suite
+# ---------------------------------------------------------------------------
+# The big one: nearly all of orchagent compiled straight into a gtest binary
+# alongside ~75 test translation units. The orchagent half comes in as
+# //orchagent:orchagent_test_srcs so the two source lists cannot drift apart;
+# see the comment there for how it relates to orchagent_SOURCES.
+#
+# SAI stays shared (dynamic_deps below), which is both what Make does
+# (LDADD_SAI = -lsaivs -lsairedis -lsaimeta -lsaimetadata) and what the four
+# --wrap options require: --wrap only rewrites references in the objects handed
+# to *this* link, so keeping libsaimetadata/libsairedis out of the static
+# closure leaves their internal calls unwrapped, exactly as in Make. Linking
+# them statically would silently redirect those too.
+SAI_SO_FILES = [
+    "@sai//meta:saimetadata_files",
+    "@sonic_rules//protobuf:libprotobuf_files",
+    "@sonic_sairedis//lib:sairedis_files",
+    "@sonic_sairedis//meta:saimeta_files",
+    "@sonic_sairedis//vslib:saivs_files",
+]
+
+cc_binary(
+    name = "tests_bin",
+    testonly = True,
+    # Deliberately in Make's tests_SOURCES order rather than sorted: gtest runs
+    # test suites in registration order, which is static-initialisation order,
+    # which is link order. Sorting this list alphabetically swaps bufferorch_ut
+    # with buffermgrdyn_ut and BufferOrchTest.BufferOrchTestLosslessBuffer-
+    # ProfilePublish then sees a BUFFER_PROFILE_TABLE entry the buffermgrdyn
+    # suite left behind. The suites are not independent, so the order is part of
+    # what is being migrated.
+    srcs = [
+        "aclorch_ut.cpp",
+        "aclorch_rule_ut.cpp",
+        "portsorch_ut.cpp",
+        "routeorch_ut.cpp",
+        "qosorch_ut.cpp",
+        "bufferorch_ut.cpp",
+        "buffermgrdyn_ut.cpp",
+        "fdborch/flush_syncd_notif_ut.cpp",
+        "macmoveguard/macmoveguard_ut.cpp",
+        "fdborch/fdborch_vxlan_ut.cpp",
+        "copp_ut.cpp",
+        "copporch_ut.cpp",
+        "saispy_ut.cpp",
+        "consumer_ut.cpp",
+        "sfloworh_ut.cpp",
+        "tunneldecaporch_ut.cpp",
+        "ut_saihelper.cpp",
+        "mock_orchagent_main.cpp",
+        "mock_consumerstatetable.cpp",
+        "mock_subscriberstatetable.cpp",
+        "common/mock_shell_command.cpp",
+        "mock_sai_api.cpp",
+        "bulker_ut.cpp",
+        "portmgr_ut.cpp",
+        "sflowmgrd_ut.cpp",
+        "fake_response_publisher.cpp",
+        "swssnet_ut.cpp",
+        "flowcounterrouteorch_ut.cpp",
+        "orchdaemon_ut.cpp",
+        "intfsorch_ut.cpp",
+        "evpnmhorch_ut.cpp",
+        "vxlanorch_ut.cpp",
+        "mux_rollback_ut.cpp",
+        "mux_subnet_slicing_ut.cpp",
+        "warmrestartassist_ut.cpp",
+        "test_failure_handling.cpp",
+        "switchorch_ut.cpp",
+        "warmrestarthelper_ut.cpp",
+        "neighorch_ut.cpp",
+        "dashenifwdorch_ut.cpp",
+        "dashorch_ut.cpp",
+        "dashvnetorch_ut.cpp",
+        "dashhaorch_ut.cpp",
+        "dashhafloworch_ut.cpp",
+        "dashrouteorch_ut.cpp",
+        "dashtunnelorch_ut.cpp",
+        "dashportmaporch_ut.cpp",
+        "dashmeterorch_ut.cpp",
+        "twamporch_ut.cpp",
+        "stporch_ut.cpp",
+        "srv6orch_ut.cpp",
+        "flexcounter_ut.cpp",
+        "portphyattr_ut.cpp",
+        "portphyserdesattr_ut.cpp",
+        "counternameupdater_ut.cpp",
+        "hftelgroup_ut.cpp",
+        "hftelprofile_ut.cpp",
+        "mock_orch_test.cpp",
+        "mock_dash_orch_test.cpp",
+        "zmq_orch_ut.cpp",
+        "retrycache_ut.cpp",
+        "saihelper_ut.cpp",
+        "mock_saihelper.cpp",
+        "mirrororch_ut.cpp",
+        "mirrororch_sample_port_sai_wrap.cpp",
+        "hftelorch_ut.cpp",
+        "hftelorch_notify_ut.cpp",
+        "hftelorch_is_supported_sai_wrap.cpp",
+        "shlorch_ut.cpp",
+        "mock_sai_fdb.cpp",
+        "mock_sai_tunnel.cpp",
+        "icmporch_ut.cpp",
+        "icmporch_sai_wrap.cpp",
+        "//warmrestart:warmRestartHelper.cpp",
+        "//lib:gearboxutils.cpp",
+        "//lib:subintf.cpp",
+        "//lib:recorder.cpp",
+        "//lib:orch_zmq_config.cpp",
+        "//orchagent:orchagent_test_srcs",
+        "//cfgmgr:portmgr.cpp",
+        "//cfgmgr:sflowmgr.cpp",
+        "//cfgmgr:buffermgrdyn.cpp",
+        "//warmrestart:warmRestartAssist.cpp",
+        "//cfgmgr:coppmgr.cpp",
+        "common/vxlan_ut_helpers.cpp",
+        # orchdaemon.cpp reaches for it, the same way the orchagent binary does.
+        "//fpmsyncd:fpmsyncd.h",
+        # None of these register a test suite, so where they land in the link
+        # does not affect the run order above.
+    ] + MOCK_DB_SRCS + glob(
+        [
+            "*.h",
+            "common/*.h",
+        ],
+        # MOCK_DB_SRCS names it already.
+        exclude = ["mock_table.h"],
+    ),
+    copts = TEST_COPTS,
+    dynamic_deps = SWSS_DYNAMIC_DEPS + [
+        # Order matters, and it is Make's: LDADD_SAI puts -lsaivs ahead of
+        # -lsairedis so that ut_saihelper.cpp's sai_api_initialize/sai_api_query
+        # bind to the virtual-switch implementation. Let libsairedis come first
+        # and the suite ends up driving the real redis channel instead, where it
+        # blocks waiting for a syncd that is not there.
+        "@sonic_sairedis//vslib:saivs_shared",
+        "@sonic_sairedis//lib:sairedis_shared",
+        "@sonic_sairedis//meta:saimeta_shared",
+        "@sai//meta:saimetadata_shared",
+        "@sonic_rules//protobuf:libprotobuf_shared",
+    ],
+    includes = ["."],
+    linkopts = [
+        "-Wl,--wrap=sai_query_stats_st_capability",
+        "-Wl,--wrap=sai_query_attribute_capability",
+        "-Wl,--wrap=sai_query_attribute_enum_values_capability",
+        "-Wl,--wrap=sai_metadata_get_attr_metadata",
+    ],
+    deps = SWSS_TEST_DEPS + [
+        "//cfgmgr:cfgmgr_hdrs",
+        "//lib:libswss_hdrs",
+        "//orchagent:orchagent_hdrs",
+        "//warmrestart:warmrestart_hdrs",
+        "@libnl3//:libnl_genl_3",
+        "@protobuf//:protobuf",
+        "@sai//meta:saimetadata",
+        "@sonic-dash-api//:dashapi",
+        "@sonic-dash-api//:dashapi_cpp_proto",
+        "@sonic_sairedis//vslib:saivs",
+        "@sonic_sairedis//lib:sairedis",
+        "@sonic_sairedis//meta:saimeta",
+        "@swss_apt_deps//libzmq3-dev:libzmq3",
+        # hftelorch.cpp includes <yaml-cpp/yaml.h>. Make gets away without saying
+        # so in tests_LDADD because the header is installed in its container and
+        # the suite never reaches the code paths that need the library.
+        "@swss_apt_deps//libyaml-cpp-dev:libyaml-cpp",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests",
+    # 885 test cases across 87 suites against a statically linked orchagent,
+    # ~16s warm. "medium" (300s) rather than "small": bazel will note the run is
+    # short for the category, but a good part of those 885 cases drive the SAI
+    # virtual switch and the margin over 60s is worth keeping on a loaded machine.
+    size = "medium",
+    binary = ":tests_bin",
+    # copp_ut.cpp passes "./copp_cfg.json" to CoppMgr, standing in for the
+    # /etc/sonic/copp_cfg.json coppmgr.h hardcodes.
+    fixtures = [
+        "copp_cfg.json",
+        "database_config.json",
+    ],
+    fixture_mode = "in_place",
+    runtime_debs = TEST_APT_DATA,
+    runtime_files = TEST_SO_FILES + SAI_SO_FILES,
+    data = LUA_DATA,
+    setup = "bazel/lua_setup.sh",
+)
+

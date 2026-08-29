@@ -10,3 +10,22 @@ cc_library(
     includes = ["."],
     deps = ["@sonic-swss-common//:swsscommon"],
 )
+
+# tests/mock_tests compiles single sources from here into its gtest binaries
+# (Make: tests_*_SOURCES += $(top_srcdir)/lib/{recorder,subintf,orch_zmq_config,
+# gearboxutils}.cpp). Linking :libswss instead would add the objects Make leaves
+# out -- asan.cpp among them -- so the sources are exported and :libswss_hdrs
+# carries nothing but the include path for "recorder.h" and its siblings.
+exports_files([
+    "gearboxutils.cpp",
+    "orch_zmq_config.cpp",
+    "recorder.cpp",
+    "subintf.cpp",
+])
+
+cc_library(
+    name = "libswss_hdrs",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    deps = ["@sonic-swss-common//:swsscommon"],
+)

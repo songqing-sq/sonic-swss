@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -15,6 +16,31 @@ CXX_COMMON = [
 CFGMGR_HDRS = glob(["*.h"])
 
 exports_files(["shellcmd.h"])
+
+# tests/mock_tests compiles the cfgmgr sources under test itself (Make:
+# tests_intfmgrd_SOURCES += $(top_srcdir)/cfgmgr/intfmgr.cpp and so on), and the
+# suites that do not -- tests_portsyncd, whose linksync.cpp includes
+# "shellcmd.h" -- still need the include path Make spells -I$(top_srcdir)/cfgmgr.
+exports_files([
+    "buffermgrdyn.cpp",
+    "coppmgr.cpp",
+    "intfmgr.cpp",
+    "nbrmgr.cpp",
+    "portmgr.cpp",
+    "sflowmgr.cpp",
+    "teammgr.cpp",
+])
+
+cc_library(
+    name = "cfgmgr_hdrs",
+    hdrs = CFGMGR_HDRS,
+    includes = ["."],
+    deps = [
+        "//lib:libswss_hdrs",
+        "//orchagent:orchagent_hdrs",
+        "@sonic-swss-common//:swsscommon",
+    ],
+)
 
 filegroup(
     name = "cfgmgr_lua_scripts",

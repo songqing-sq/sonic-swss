@@ -89,6 +89,63 @@ cc_library(
 
 exports_files(["macsecpost.cpp"])
 
+# tests/mock_tests compiles a handful of orchagent sources straight into its
+# gtest binaries (Make: tests_*_SOURCES += $(top_srcdir)/orchagent/{orch,
+# request_parser,response_publisher}.cpp). :orch_common is not reusable there
+# because the cfgmgr suites swap response_publisher.cpp for
+# fake_response_publisher.cpp, and linking the library would drag the real
+# object in next to the fake.
+exports_files([
+    "orch.cpp",
+    "request_parser.cpp",
+    "response_publisher.cpp",
+])
+
+# Headers only, for the suites that include orchdaemon.h & friends but compile
+# their own subset of the sources. The extras over :orch_common are what Make
+# spells out as tests_INCLUDES and the SAI/dash flags: dash/ is reachable from
+# within dash/ itself but not from a test TU that includes "dashorch.h" bare,
+# and orchdaemon.h pulls in the generated protobuf headers that orch.cpp itself
+# never sees. p4orch/ is Make's -I $(P4ORCH_DIR); no basename in it collides
+# with any other directory on this list.
+cc_library(
+    name = "orchagent_hdrs",
+    hdrs = glob(["**/*.h"]),
+    includes = [
+        ".",
+        "cbf",
+        "dash",
+        "debug_counter",
+        "flex_counter",
+        "high_frequency_telemetry",
+        "nhg",
+        "p4orch",
+        "pbh",
+        "port",
+        "switch",
+    ],
+    deps = [
+        # p4orch/tests is its own package (it builds the p4orch_tests suite), so
+        # the glob above stops at its boundary -- but mock_response_publisher.h
+        # and five of the mock_sai_*.h live there and the mock_tests suites
+        # include them bare, which Make spelled as -I$(P4_ORCH_DIR)/tests.
+        "//orchagent/p4orch/tests:p4orch_test_hdrs",
+        "//lib:libswss_hdrs",
+        "//warmrestart:warmrestart_hdrs",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+        "@protobuf//:protobuf",
+        "@sai//meta:saimetadata",
+        "@sonic-dash-api//:dashapi",
+        "@sonic-dash-api//:dashapi_cpp_proto",
+        "@sonic-swss-common//:swsscommon",
+        "@sonic_sairedis//meta:saimeta",
+        "@swss_apt_deps//libhiredis-dev:libhiredis",
+        "@swss_apt_deps//libzmq3-dev:libzmq3",
+        "@sonic_rules//system_libs:pthread",
+    ],
+)
+
 orchagent_SOURCES = [
     "main.cpp",
     "orchdaemon.cpp",
@@ -211,6 +268,73 @@ orchagent_SOURCES = [
     "p4orch/ip_multicast_manager.cpp",
     "p4orch/ext_tables_manager.cpp",
 ]
+
+# The main mock_tests suite compiles nearly all of orchagent into its gtest
+# binary. Make's tests_SOURCES turns out to be exactly orchagent_SOURCES with
+# main.cpp dropped (the suite brings gtest_main) plus the three sources below:
+# orch.cpp and request_parser.cpp, which the production binary gets from
+# :orch_common instead, and p4orch/tests/mock_sai_switch.cpp. Exporting the list
+# as a filegroup keeps the two source sets from drifting apart -- a new orchagent
+# source starts being compiled by the suite the moment it is added above, which
+# is what Make's shared $(top_srcdir) spelling achieved by accident.
+filegroup(
+    name = "orchagent_test_srcs",
+    testonly = True,
+    srcs = [src for src in orchagent_SOURCES if src != "main.cpp"] + [
+        "orch.cpp",
+        "//orchagent/p4orch/tests:mock_sai_switch.cpp",
+        "request_parser.cpp",
+    ],
+)
+
+# The slice of orchagent that p4orch/tests/p4orch_tests links (Make: the
+# $(ORCHAGENT_DIR)/... and $(P4ORCH_DIR)/... entries of p4orch_tests_SOURCES, in
+# that order). It is a filegroup rather than a library because the suite replaces
+# portsorch/crmorch/routeorch/aclorch with fakes of its own, so pulling
+# :orch_common in would drag the real objects in beside them.
+filegroup(
+    name = "p4orch_test_orchagent_srcs",
+    testonly = True,
+    srcs = [
+        "orch.cpp",
+        "vrforch.cpp",
+        "vxlanorch.cpp",
+        "copporch.cpp",
+        "switch/switch_capabilities.cpp",
+        "switch/switch_helper.cpp",
+        "switch/trimming/capabilities.cpp",
+        "switch/trimming/helper.cpp",
+        "switchorch.cpp",
+        "request_parser.cpp",
+        # Make has $(top_srcdir)/lib/recorder.cpp here; the suite lists it right
+        # after this filegroup instead, since it is in another package.
+        "zmqorch.cpp",
+        "flex_counter/flex_counter_manager.cpp",
+        "flex_counter/flow_counter_handler.cpp",
+        "port/port_capabilities.cpp",
+        "port/porthlpr.cpp",
+        "notifications.cpp",
+        "p4orch/p4oidmapper.cpp",
+        "p4orch/p4orch.cpp",
+        "p4orch/p4orch_util.cpp",
+        "p4orch/tables_definition_manager.cpp",
+        "p4orch/router_interface_manager.cpp",
+        "p4orch/gre_tunnel_manager.cpp",
+        "p4orch/neighbor_manager.cpp",
+        "p4orch/next_hop_manager.cpp",
+        "p4orch/route_manager.cpp",
+        "p4orch/acl_util.cpp",
+        "p4orch/acl_table_manager.cpp",
+        "p4orch/acl_rule_manager.cpp",
+        "p4orch/wcmp_manager.cpp",
+        "p4orch/mirror_session_manager.cpp",
+        "p4orch/l3_admit_manager.cpp",
+        "p4orch/l3_multicast_manager.cpp",
+        "p4orch/tunnel_decap_group_manager.cpp",
+        "p4orch/ip_multicast_manager.cpp",
+        "p4orch/ext_tables_manager.cpp",
+    ],
+)
 
 cc_binary(
     name = "orchagent",

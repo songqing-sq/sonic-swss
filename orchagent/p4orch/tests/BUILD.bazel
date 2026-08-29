@@ -1,0 +1,205 @@
+# p4orch unit tests (Make: orchagent/p4orch/tests/Makefile.am).
+#
+# `TESTS = p4orch_tests` / `noinst_PROGRAMS = p4orch_tests`, reached by `make
+# check` because orchagent/Makefile.am lists `SUBDIRS = p4orch/tests`
+# unconditionally -- so unlike tests/mock_tests this suite runs even when the
+# build container has a real SAI installed.
+#
+# The suite keeps no redis and no virtual switch around:
+#   - fake_dbconnector.cpp reimplements DBConnector's constructors over an
+#     in-process std::map, so nothing dials a socket.
+#   - test_main.cpp does not call sai_api_initialize/sai_api_query at all; it
+#     fills the global sai_*_api pointers with the addresses of local
+#     sai_*_api_t structs whose members point at the mock_sai_*.cpp trampolines.
+#     Hence Make's p4orch_tests_LDADD has no -lsaivs and neither do we, and the
+#     -lsaivs-before--lsairedis ordering trap of tests/mock_tests does not apply.
+# The fakes do still have to interpose on libswsscommon (DBConnector, Table,
+# ProducerTable, ConsumerStateTable, NotificationConsumer, ZmqServer), so
+# swsscommon must be linked shared exactly as it is for the other suites -- and
+# what they do not replace still needs a database config, see bazel/.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@sonic_rules//cc:gtest_test.bzl", "sonic_cc_gtest_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# tests/mock_tests reaches into this directory for one source (Make:
+# tests_SOURCES += $(P4_ORCH_DIR)/tests/mock_sai_switch.cpp).
+exports_files(["mock_sai_switch.cpp"])
+
+# The headers here are not private to this suite: tests/mock_tests includes
+# mock_response_publisher.h, mock_sai_bridge.h, mock_sai_stp.h, mock_sai_switch.h
+# and mock_sai_tunnel.h bare. Before this package existed they arrived through
+# //orchagent:orchagent_hdrs' glob; now that the package boundary cuts the glob
+# short, that library depends on this one instead. Deliberately not testonly --
+# :orchagent_hdrs is not either, and it is the one thing that depends on this.
+#
+# The gmock/gmock.h these headers include comes from whoever compiles them; no
+# dep is needed because a hdrs-only library compiles nothing itself.
+cc_library(
+    name = "p4orch_test_hdrs",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    deps = ["@sai//meta:saimetadata"],
+)
+
+# Make: CFLAGS/CXXFLAGS = -g -O0, DBGFLAGS = -g -DNDEBUG (the non-DEBUG arm).
+TEST_COPTS = [
+    "-g",
+    "-O0",
+    "-std=c++17",
+    "-DNDEBUG",
+]
+
+# The database config the libswsscommon deb installs at an absolute path in
+# Make's build container. Copied out of tests/mock_tests rather than duplicated:
+# a generated file lands in this package's runfiles dir, which is where
+# fixture_mode = "in_place" puts the CWD, so bazel/sonic_db_config_env.cpp finds
+# it as ./database_config.json.
+genrule(
+    name = "database_config_json",
+    testonly = True,
+    srcs = ["//tests/mock_tests:database_config.json"],
+    outs = ["database_config.json"],
+    cmd = "cp $< $@",
+)
+
+cc_binary(
+    name = "p4orch_tests_bin",
+    testonly = True,
+    # Make's p4orch_tests_SOURCES order. It matters for the sixteen *_test.cpp
+    # below, whose gtest suites run in registration order = static-initialisation
+    # order = link order; the rest register nothing.
+    srcs = [
+        "//orchagent:p4orch_test_orchagent_srcs",
+        "//lib:recorder.cpp",
+        "//tests/mock_tests:fake_response_publisher.cpp",
+        "fake_portorch.cpp",
+        "fake_crmorch.cpp",
+        "fake_flexcounterorch.cpp",
+        "fake_flowcounterrouteorch.cpp",
+        "fake_routeorch.cpp",
+        "fake_dbconnector.cpp",
+        "fake_producertable.cpp",
+        "fake_consumerstatetable.cpp",
+        "fake_subscriberstatetable.cpp",
+        "fake_notificationconsumer.cpp",
+        "fake_notificationconsumerstatsorch.cpp",
+        "fake_table.cpp",
+        "fake_aclorch.cpp",
+        "fake_zmqserver.cpp",
+        "p4oidmapper_test.cpp",
+        "p4orch_test.cpp",
+        "p4orch_util_test.cpp",
+        "return_code_test.cpp",
+        "route_manager_test.cpp",
+        "l3_multicast_manager_test.cpp",
+        "ip_multicast_manager_test.cpp",
+        "gre_tunnel_manager_test.cpp",
+        "next_hop_manager_test.cpp",
+        "wcmp_manager_test.cpp",
+        "acl_manager_test.cpp",
+        "l3_admit_manager_test.cpp",
+        "router_interface_manager_test.cpp",
+        "neighbor_manager_test.cpp",
+        "mirror_session_manager_test.cpp",
+        "tunnel_decap_group_manager_test.cpp",
+        "test_main.cpp",
+        "mock_sai_acl.cpp",
+        "mock_sai_bridge.cpp",
+        "mock_sai_hostif.cpp",
+        "mock_sai_ipmc.cpp",
+        "mock_sai_ipmc_group.cpp",
+        "mock_sai_l2mc.cpp",
+        "mock_sai_l2mc_group.cpp",
+        "mock_sai_my_mac.cpp",
+        "mock_sai_serialize.cpp",
+        "mock_sai_router_interface.cpp",
+        "mock_sai_rpf_group.cpp",
+        "mock_sai_neighbor.cpp",
+        "mock_sai_next_hop.cpp",
+        "mock_sai_route.cpp",
+        "mock_sai_switch.cpp",
+        "mock_sai_udf.cpp",
+        "mock_sai_tunnel.cpp",
+        # Registers no suite, so where it lands in the link does not affect the
+        # run order above.
+        "bazel/sonic_db_config_env.cpp",
+    ] + glob(["*.h"]),
+    copts = TEST_COPTS,
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@sonic_sairedis//lib:sairedis_shared",
+        "@sonic_sairedis//meta:saimeta_shared",
+        "@sai//meta:saimetadata_shared",
+        "@sonic_rules//protobuf:libprotobuf_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_genl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
+    includes = ["."],
+    deps = [
+        # Make: -I $(top_srcdir)/lib, -I $(ORCHAGENT_DIR), -I $(P4ORCH_DIR),
+        # -I $(ORCHAGENT_DIR)/flex_counter -- the last three all come from
+        # :orchagent_hdrs' includes.
+        "//lib:libswss_hdrs",
+        "//orchagent:orchagent_hdrs",
+        # gtest brings gmock with it. Make also lists -lgtest_main/-lgmock_main,
+        # which are inert there: test_main.cpp defines main() and the archive
+        # member holding the other one is never pulled. Naming them here would
+        # instead put a second main() in the link.
+        "@googletest//:gtest",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_route_3",
+        "@sai//meta:saimetadata",
+        "@sonic-swss-common//:swsscommon",
+        "@sonic_sairedis//lib:sairedis",
+        "@sonic_sairedis//meta:saimeta",
+        "@sonic_rules//system_libs:pthread",
+        "@swss_apt_deps//libhiredis-dev:libhiredis",
+        "@swss_apt_deps//libzmq3-dev:libzmq3",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "p4orch_tests",
+    binary = ":p4orch_tests_bin",
+    # No lua setup and no redis: the fakes keep this suite off the wire. The
+    # config file is only read for the table-name separators -- see bazel/.
+    fixtures = [":database_config.json"],
+    fixture_mode = "in_place",
+    runtime_debs = [
+        "@swss_apt_deps//libhiredis1.1.0:data",
+        "@swss_apt_deps//libzmq5:data",
+        "@swss_apt_deps//libboost-serialization1.83.0:data",
+        "@swss_apt_deps//libuuid1:data",
+        "@swss_apt_deps//liblua5.1-0:data",
+        "@swss_apt_deps//libpcre2-8-0:data",
+        "@swss_apt_deps//libpcre2-16-0:data",
+        "@swss_apt_deps//libpcre2-32-0:data",
+        "@swss_apt_deps//libpcre2-posix3:data",
+        "@swss_apt_deps//libxxhash0:data",
+        "@swss_apt_deps//zlib1g:data",
+        # The runner execs the staged loader, so the glibc family is declared
+        # rather than ridden in on the import closure.
+        "@swss_apt_deps//libc6:data",
+        "@swss_apt_deps//libgcc-s1:data",
+        "@swss_apt_deps//libstdc++6:data",
+    ],
+    runtime_files = [
+        "@sonic-swss-common//:swsscommon_files",
+        "@libnl3//:libnl_3_files",
+        "@libnl3//:libnl_genl_3_files",
+        "@libnl3//:libnl_nf_3_files",
+        "@libnl3//:libnl_route_3_files",
+        "@libnl3//:libnl_cli_3_files",
+        "@libyang3//:yang_files",
+        "@sai//meta:saimetadata_files",
+        "@sonic_rules//protobuf:libprotobuf_files",
+        "@sonic_sairedis//lib:sairedis_files",
+        "@sonic_sairedis//meta:saimeta_files",
+    ],
+)

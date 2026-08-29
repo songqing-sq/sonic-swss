@@ -1,0 +1,105 @@
+# The gtest suite Make builds right here in tests/, alongside the python vs
+# tests: `TESTS = tests` / `noinst_PROGRAMS = tests` in tests/Makefile.am, run by
+# `make check` because the top-level SUBDIRS lists tests unconditionally. It is a
+# separate program from the nine under tests/mock_tests (that subdirectory is
+# guarded by `if !HAVE_SAI`), and it links no mocks at all: swssnet_ut,
+# request_parser_ut and quoted_ut are pure logic tests over swssnet.h,
+# Request/RequestParser and Recorder, so there is no redis to keep off the wire
+# and nothing to interpose on.
+#
+# Note that tests/swssnet_ut.cpp and tests/request_parser_ut.cpp have namesakes
+# under tests/mock_tests/ with different contents; these are the tests/ copies.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@sonic_rules//cc:gtest_test.bzl", "sonic_cc_gtest_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Make: CFLAGS/CXXFLAGS = -g -O0 from the deb build, DBGFLAGS = -g -DNDEBUG
+# (the non-DEBUG arm of tests/Makefile.am).
+TEST_COPTS = [
+    "-g",
+    "-O0",
+    "-std=c++17",
+    "-DNDEBUG",
+]
+
+cc_binary(
+    name = "tests_bin",
+    testonly = True,
+    # Make's tests_SOURCES order.
+    srcs = [
+        "swssnet_ut.cpp",
+        "request_parser_ut.cpp",
+        "//orchagent:request_parser.cpp",
+        "quoted_ut.cpp",
+        "//lib:recorder.cpp",
+    ],
+    copts = TEST_COPTS,
+    # Matches Make's -lswsscommon: no mock interposes here, but linking the
+    # library statically would pull a second copy of its static initialisers
+    # into a binary that already resolves them dynamically through libnl/libyang.
+    dynamic_deps = [
+        "@sonic-swss-common//:swsscommon_shared",
+        "@libnl3//:libnl_3_shared",
+        "@libnl3//:libnl_genl_3_shared",
+        "@libnl3//:libnl_nf_3_shared",
+        "@libnl3//:libnl_route_3_shared",
+        "@libyang3//:yang_shared",
+    ],
+    deps = [
+        # shellcmd.h: quoted_ut.cpp is the only file in the tree that spells
+        # #include "cfgmgr/shellcmd.h". The repo-relative quote include resolves
+        # off bazel's -iquote for the repository root, so all this dep has to do
+        # is put the header in the sandbox.
+        "//cfgmgr:cfgmgr_hdrs",
+        # recorder.h -- Make: INCLUDES = -I $(top_srcdir)/lib.
+        "//lib:libswss_hdrs",
+        # swssnet.h, orch.h, request_parser.h -- Make: tests_CPPFLAGS -I../orchagent.
+        "//orchagent:orchagent_hdrs",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@libnl3//:libnl_3",
+        "@libnl3//:libnl_genl_3",
+        "@libnl3//:libnl_route_3",
+        "@sonic-swss-common//:swsscommon",
+        "@sonic_rules//system_libs:pthread",
+        "@swss_apt_deps//libhiredis-dev:libhiredis",
+    ],
+)
+
+sonic_cc_gtest_test(
+    name = "tests",
+    binary = ":tests_bin",
+    # No fixtures: nothing here constructs a DBConnector, so neither the
+    # database_config.json shim nor the lua scripts the mock_tests suites need
+    # come into play. quoted_ut.cpp writes its recorder files into a mkdtemp
+    # under /tmp, which the sandbox provides.
+    runtime_debs = [
+        "@swss_apt_deps//libhiredis1.1.0:data",
+        "@swss_apt_deps//libzmq5:data",
+        "@swss_apt_deps//libboost-serialization1.83.0:data",
+        "@swss_apt_deps//libuuid1:data",
+        "@swss_apt_deps//liblua5.1-0:data",
+        "@swss_apt_deps//libpcre2-8-0:data",
+        "@swss_apt_deps//libpcre2-16-0:data",
+        "@swss_apt_deps//libpcre2-32-0:data",
+        "@swss_apt_deps//libpcre2-posix3:data",
+        "@swss_apt_deps//libxxhash0:data",
+        "@swss_apt_deps//zlib1g:data",
+        # The runner execs the staged loader, so the glibc family is declared
+        # rather than ridden in on the import closure.
+        "@swss_apt_deps//libc6:data",
+        "@swss_apt_deps//libgcc-s1:data",
+        "@swss_apt_deps//libstdc++6:data",
+    ],
+    runtime_files = [
+        "@sonic-swss-common//:swsscommon_files",
+        "@libnl3//:libnl_3_files",
+        "@libnl3//:libnl_genl_3_files",
+        "@libnl3//:libnl_nf_3_files",
+        "@libnl3//:libnl_route_3_files",
+        "@libnl3//:libnl_cli_3_files",
+        "@libyang3//:yang_files",
+    ],
+)
